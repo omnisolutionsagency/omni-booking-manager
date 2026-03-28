@@ -28,7 +28,6 @@ class OBM_Admin_Dashboard {
         add_menu_page('Bookings', 'Bookings', $cap, 'obm-dashboard', [$this, 'render_dashboard'], 'dashicons-calendar-alt', 30);
         add_submenu_page('obm-dashboard', 'All Leads', 'All Leads', $cap, 'obm-dashboard', [$this, 'render_dashboard']);
         add_submenu_page('obm-dashboard', 'Add Booking', 'Add Booking', $cap, 'obm-add-booking', [OBM_Admin_Add_Booking::get_instance(), 'render']);
-        add_submenu_page('obm-dashboard', 'Import', 'Import', 'manage_options', 'obm-import', [OBM_Admin_Import::get_instance(), 'render']);
         add_submenu_page('obm-dashboard', $staff_label, $staff_label, $cap, 'obm-staff', [OBM_Admin_Staff::get_instance(), 'render']);
         add_submenu_page('obm-dashboard', 'Blocked Dates', 'Blocked Dates', $cap, 'obm-blocked-dates', [OBM_Admin_Blocked_Dates::get_instance(), 'render']);
         add_submenu_page('obm-dashboard', 'Settings', 'Settings', 'manage_options', 'obm-settings', [OBM_Admin_Settings::get_instance(), 'render']);
@@ -193,6 +192,7 @@ class OBM_Admin_Dashboard {
                     <?php endif; ?>
                 </div>
                 <div class="obm-detail-actions">
+                    <label>Requested Date: <input type="date" class="obm-requested-date" data-id="<?php echo $l->id; ?>" value="<?php echo esc_attr($l->requested_date); ?>"></label>
                     <label>Start Time: <input type="time" class="obm-start-time" data-id="<?php echo $l->id; ?>" value="<?php echo esc_attr($l->start_time); ?>"></label>
                     <label>Duration: <select class="obm-duration" data-id="<?php echo $l->id; ?>">
                         <option value="">Select</option>
@@ -213,13 +213,13 @@ class OBM_Admin_Dashboard {
                     </select></label>
                     <?php if ($l->status === 'proposed'): ?>
                     <div class="obm-btn-group">
-                    <button class="button button-primary obm-action-btn" data-id="<?php echo $l->id; ?>" data-action="book">Book</button>
-                    <button class="button obm-action-btn" data-id="<?php echo $l->id; ?>" data-action="decline">Decline</button>
+                    <button class="obm-action-btn obm-btn-book" data-id="<?php echo $l->id; ?>" data-action="book">Book</button>
+                    <button class="obm-action-btn obm-btn-decline" data-id="<?php echo $l->id; ?>" data-action="decline">Decline</button>
                     </div>
                     <?php elseif ($l->status === 'booked'): ?>
                     <div class="obm-btn-group">
-                    <button class="button button-primary obm-action-btn" data-id="<?php echo $l->id; ?>" data-action="complete">Completed</button>
-                    <button class="button obm-action-btn" data-id="<?php echo $l->id; ?>" data-action="decline">Cancel</button>
+                    <button class="obm-action-btn obm-btn-complete" data-id="<?php echo $l->id; ?>" data-action="complete">Completed</button>
+                    <button class="obm-action-btn obm-btn-decline" data-id="<?php echo $l->id; ?>" data-action="decline">Cancel</button>
                     </div>
                     <?php endif; ?>
                     <?php if (class_exists('OBM_Integration_Waivers') && OBM_Integrations::get_instance()->is_active('waivers')): ?>
@@ -228,6 +228,7 @@ class OBM_Admin_Dashboard {
                         $waiver_status = isset($l->waiver_status) ? $l->waiver_status : '';
                         if ($waiver_status === 'signed'): ?>
                             <span style="color:green;font-weight:600;">Waiver Signed</span>
+                            <a href="<?php echo admin_url('admin-ajax.php?action=obm_download_waiver&lead_id=' . $l->id); ?>" target="_blank" class="button button-small" style="margin-left:5px;">Download PDF</a>
                         <?php else: ?>
                             <button class="button obm-send-waiver" data-id="<?php echo $l->id; ?>">Send Waiver</button>
                             <?php if ($waiver_status === 'pending'): ?>

@@ -171,7 +171,7 @@ class OBM_Integration_Reviews {
     }
 
     public function add_menu() {
-        add_submenu_page('obm-dashboard', 'Review Collection', 'Reviews', 'manage_options', 'obm-int-reviews', [$this, 'render_settings']);
+        // Settings rendered as tab under Settings page
     }
 
     private function get_platforms() {
@@ -212,7 +212,7 @@ class OBM_Integration_Reviews {
         $google = $platforms['google'] ?? null;
         update_option('obm_review_url', $google && $google['enabled'] ? $google['url'] : '');
 
-        wp_redirect(admin_url('admin.php?page=obm-int-reviews&msg=saved'));
+        wp_redirect(admin_url('admin.php?page=obm-settings&tab=reviews&msg=saved'));
         exit;
     }
 
@@ -221,8 +221,7 @@ class OBM_Integration_Reviews {
         $review_body = get_option('obm_review_body', $this->get_default_body());
         $platforms = $this->get_platforms();
         ?>
-        <div class="wrap obm-wrap">
-        <h1>Review Collection</h1>
+        <div>
         <?php if (isset($_GET['msg'])): ?>
         <div class="notice notice-success"><p>Settings saved.</p></div>
         <?php endif; ?>

@@ -27,6 +27,13 @@
 .obm-detail-actions select,.obm-detail-actions input[type="time"]{width:100%;margin-bottom:8px;padding:4px;}
 .obm-detail-actions label{display:block;margin-bottom:10px;font-weight:600;}
 .obm-btn-group{margin-top:10px;display:flex;gap:8px;}
+.obm-btn-book,.obm-btn-decline,.obm-btn-complete{padding:8px 20px;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;color:#fff;}
+.obm-btn-book{background:#2c5f2d;}
+.obm-btn-book:hover{background:#245024;}
+.obm-btn-decline{background:#cc3333;}
+.obm-btn-decline:hover{background:#aa2222;}
+.obm-btn-complete{background:#4a90d9;}
+.obm-btn-complete:hover{background:#3a7bc8;}
 .obm-detail-notes textarea{width:100%;min-height:80px;margin:5px 0;}
 .obm-detail-notes label{font-weight:600;}
 .obm-table .obm-actions{white-space:nowrap;}

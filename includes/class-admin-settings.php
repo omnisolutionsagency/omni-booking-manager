@@ -96,13 +96,24 @@ class OBM_Admin_Settings {
         $gcal = OBM_Google_Calendar::get_instance();
         $connected = $gcal->is_connected();
         $settings = obm_get_settings();
+        $integrations = class_exists('OBM_Integrations') ? OBM_Integrations::get_instance() : null;
         ?>
         <div class="wrap obm-wrap">
         <h1>Omni Booking Manager Settings</h1>
         <nav class="nav-tab-wrapper">
             <a href="?page=obm-settings&tab=general" class="nav-tab <?php echo $tab === 'general' ? 'nav-tab-active' : ''; ?>">General</a>
             <a href="?page=obm-settings&tab=google" class="nav-tab <?php echo $tab === 'google' ? 'nav-tab-active' : ''; ?>">Google Calendar</a>
+            <a href="?page=obm-settings&tab=import" class="nav-tab <?php echo $tab === 'import' ? 'nav-tab-active' : ''; ?>">Import</a>
             <a href="?page=obm-settings&tab=export" class="nav-tab <?php echo $tab === 'export' ? 'nav-tab-active' : ''; ?>">Export</a>
+            <?php if ($integrations && $integrations->is_active('stripe')): ?>
+            <a href="?page=obm-settings&tab=payments" class="nav-tab <?php echo $tab === 'payments' ? 'nav-tab-active' : ''; ?>">Payments</a>
+            <?php endif; ?>
+            <?php if ($integrations && $integrations->is_active('waivers')): ?>
+            <a href="?page=obm-settings&tab=waivers" class="nav-tab <?php echo $tab === 'waivers' ? 'nav-tab-active' : ''; ?>">Waivers</a>
+            <?php endif; ?>
+            <?php if ($integrations && $integrations->is_active('reviews')): ?>
+            <a href="?page=obm-settings&tab=reviews" class="nav-tab <?php echo $tab === 'reviews' ? 'nav-tab-active' : ''; ?>">Reviews</a>
+            <?php endif; ?>
             <a href="?page=obm-settings&tab=wizard" class="nav-tab <?php echo $tab === 'wizard' ? 'nav-tab-active' : ''; ?>">Setup Wizard</a>
         </nav>
         <div style="margin-top:15px;">
@@ -159,6 +170,9 @@ class OBM_Admin_Settings {
             <?php endif; ?>
         <?php endif; ?>
 
+        <?php elseif ($tab === 'import'): ?>
+        <?php OBM_Admin_Import::get_instance()->render(); ?>
+
         <?php elseif ($tab === 'export'): ?>
         <p>Download all booking data as CSV files.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -181,6 +195,15 @@ class OBM_Admin_Settings {
                 <input type="submit" class="button" value="Export Blocked Dates">
             </form>
         </div>
+
+        <?php elseif ($tab === 'payments' && $integrations && $integrations->is_active('stripe') && class_exists('OBM_Integration_Stripe')): ?>
+        <?php OBM_Integration_Stripe::get_instance()->render_settings(); ?>
+
+        <?php elseif ($tab === 'waivers' && $integrations && $integrations->is_active('waivers') && class_exists('OBM_Integration_Waivers')): ?>
+        <?php OBM_Integration_Waivers::get_instance()->render_settings(); ?>
+
+        <?php elseif ($tab === 'reviews' && $integrations && $integrations->is_active('reviews') && class_exists('OBM_Integration_Reviews')): ?>
+        <?php OBM_Integration_Reviews::get_instance()->render_settings(); ?>
 
         <?php elseif ($tab === 'wizard'): ?>
         <?php OBM_Admin_Wizard::get_instance()->render(); ?>

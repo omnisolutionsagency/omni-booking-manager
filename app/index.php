@@ -86,12 +86,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 <div id="page-calendar" class="page">
     <div id="calendar"></div>
 </div>
+<div id="page-add" class="page">
+    <div style="padding:12px 0;">
+    <div style="background:var(--card);border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.08);">
+        <h2 style="margin-bottom:12px;">Add Booking</h2>
+        <div class="detail-row"><label>Name *</label><input type="text" id="add-name" required></div>
+        <div class="detail-row"><label>Email</label><input type="email" id="add-email"></div>
+        <div class="detail-row"><label>Phone</label><input type="tel" id="add-phone"></div>
+        <div class="detail-row"><label>Date *</label><input type="date" id="add-date" required></div>
+        <div class="detail-row"><label>Backup Date</label><input type="date" id="add-backup"></div>
+        <div class="detail-row"><label>Start Time</label><input type="time" id="add-time"></div>
+        <div class="detail-row"><label>Guests</label><input type="number" id="add-guests" value="0" min="0"></div>
+        <div class="detail-row"><label>Under 6</label><input type="number" id="add-under6" value="0" min="0"></div>
+        <div class="detail-row"><label>Status</label><select id="add-status"><option value="proposed">Proposed</option><option value="booked">Booked</option></select></div>
+        <div class="detail-row"><label>Duration</label><select id="add-duration"><option value="">Select</option></select></div>
+        <div class="detail-row"><label id="add-staff-label">Staff</label><select id="add-staff"><option value="0">Unassigned</option></select></div>
+        <div class="detail-row"><label>Message</label><textarea id="add-message" rows="2"></textarea></div>
+        <div class="detail-row"><label>Notes</label><textarea id="add-notes" rows="2"></textarea></div>
+        <button class="btn btn-book" id="add-submit" onclick="submitNewBooking()">Add Booking</button>
+    </div>
+    </div>
+</div>
 <div class="detail-overlay" id="overlay"></div>
 <div class="detail-panel" id="detail"></div>
 <nav class="nav">
     <button id="nav-leads" class="active" onclick="showPage('leads')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Leads</button>
+    <button id="nav-add" onclick="showPage('add')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Add</button>
     <button id="nav-calendar" onclick="showPage('calendar')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         Calendar</button>
@@ -110,7 +134,7 @@ async function api(path,opts={}){
 }
 async function init(){
     [leads,staff,CFG]=await Promise.all([api("leads"),api("staff"),api("config")]);
-    loadStats();renderLeads();
+    loadStats();renderLeads();populateAddForm();
     calMonth=new Date().toISOString().slice(0,7);
     loadCalendar();
 }
@@ -120,7 +144,7 @@ async function loadStats(){
         `<div class="stat-box ${k}"><span class="num">${s[k]}</span><span class="lbl">${k}</span></div>`
     ).join("");
     const t=s.proposed+s.booked+s.declined+s.completed;
-    const btns=[["",'All ('+t+')'],['proposed','Proposed'],['booked','Booked'],['declined','Declined']];
+    const btns=[["",'All ('+t+')"'],["proposed","Proposed"],["booked","Booked"],["declined","Declined"]];
     document.getElementById("filters").innerHTML=btns.map(b=>
         `<button class="filter-btn ${curFilter===b[0]?"active":""}" onclick="setFilter('${b[0]}')">${b[1]}</button>`
     ).join("");
@@ -159,7 +183,7 @@ function openDetail(id){
     let html=`<h2>${esc(l.name)} <span class="badge badge-${l.status}">${l.status}</span></h2>`;
     html+=`<div class="detail-row"><label>Email</label><span><a href="mailto:${esc(l.email)}">${esc(l.email)}</a></span></div>`;
     html+=`<div class="detail-row"><label>Phone</label><span><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a></span></div>`;
-    html+=`<div class="detail-row"><label>Date</label><span>${l.requested_date}</span></div>`;
+    html+=`<div class="detail-row"><label>Requested Date</label><input type="date" id="d-date" value="${l.requested_date||""}" onchange="updateField(${l.id},'requested_date',this.value)"></div>`;
     if(l.backup_date&&l.backup_date!==l.requested_date)
         html+=`<div class="detail-row"><label>Backup</label><span>${l.backup_date} <button class="btn btn-secondary" style="width:auto;padding:4px 10px;margin:0" onclick="useBackup(${l.id})">Use This</button></span></div>`;
     html+=`<div class="detail-row"><label>Guests</label><span>${l.guests}${+l.guests_under_6?" ("+l.guests_under_6+" under 6)":""}</span></div>`;
@@ -186,7 +210,7 @@ function openDetail(id){
     // Waiver
     if(I.waivers){
         const ws=l.waiver_status||'';
-        if(ws==='signed') intHtml+=`<div class="detail-row" style="color:green;font-weight:600;">&#10003; Waiver Signed</div>`;
+        if(ws==='signed') intHtml+=`<div class="detail-row" style="display:flex;align-items:center;gap:8px;"><span style="color:green;font-weight:600;">&#10003; Waiver Signed</span><a href="${API.replace('/wp-json/obm/v1/','/wp-admin/admin-ajax.php')}?action=obm_download_waiver&lead_id=${l.id}" target="_blank" class="btn btn-secondary" style="width:auto;padding:6px 14px;margin:0;font-size:13px;">Download PDF</a></div>`;
         else intHtml+=`<div class="detail-row"><button class="btn btn-secondary" id="btn-waiver" onclick="sendAction(${l.id},'send-waiver',this)">${ws==='pending'?'Resend Waiver':'Send Waiver'}</button>${ws==='pending'?'<small style="color:#d63638;">Sent — awaiting signature</small>':''}</div>`;
     }
 
@@ -345,6 +369,55 @@ async function sendSmsMobile(id){
         if(r.sent){alert("SMS sent!");document.getElementById("sms-msg").value="";}
         else alert("Failed to send SMS.");
     }catch(e){alert("Error sending SMS.");}
+}
+function populateAddForm(){
+    const durSel=document.getElementById("add-duration");
+    DURATIONS.forEach(d=>{if(d)durSel.innerHTML+=`<option value="${d}">${d}</option>`;});
+    const staffSel=document.getElementById("add-staff");
+    staff.forEach(s=>staffSel.innerHTML+=`<option value="${s.id}">${esc(s.name)}</option>`);
+    document.getElementById("add-staff-label").textContent=STAFF_LABEL;
+}
+async function submitNewBooking(){
+    const name=document.getElementById("add-name").value.trim();
+    const date=document.getElementById("add-date").value;
+    if(!name){alert("Name is required.");return;}
+    if(!date){alert("Date is required.");return;}
+    const btn=document.getElementById("add-submit");
+    btn.disabled=true;btn.textContent="Creating...";
+    const body={
+        name:name,
+        email:document.getElementById("add-email").value,
+        phone:document.getElementById("add-phone").value,
+        requested_date:date,
+        backup_date:document.getElementById("add-backup").value,
+        start_time:document.getElementById("add-time").value,
+        guests:parseInt(document.getElementById("add-guests").value)||0,
+        guests_under_6:parseInt(document.getElementById("add-under6").value)||0,
+        status:document.getElementById("add-status").value,
+        service_duration:document.getElementById("add-duration").value,
+        staff_id:document.getElementById("add-staff").value,
+        message:document.getElementById("add-message").value,
+        notes:document.getElementById("add-notes").value,
+    };
+    try{
+        const r=await api("leads",{method:"POST",body:JSON.stringify(body)});
+        if(r.id){
+            // Reset form
+            ["add-name","add-email","add-phone","add-date","add-backup","add-time","add-message","add-notes"].forEach(id=>document.getElementById(id).value="");
+            document.getElementById("add-guests").value="0";
+            document.getElementById("add-under6").value="0";
+            document.getElementById("add-status").value="proposed";
+            document.getElementById("add-duration").value="";
+            document.getElementById("add-staff").value="0";
+            // Refresh and go to leads
+            leads=await api("leads");loadStats();renderLeads();
+            showPage("leads");
+            alert("Booking added!");
+        }else{
+            alert("Error: "+(r.message||"Failed to create booking"));
+        }
+    }catch(e){alert("Error creating booking.");}
+    btn.disabled=false;btn.textContent="Add Booking";
 }
 if("serviceWorker" in navigator){navigator.serviceWorker.register("<?php echo OBM_PLUGIN_URL; ?>app/sw.js");}
 init();

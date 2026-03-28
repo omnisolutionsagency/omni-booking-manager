@@ -17,6 +17,7 @@ class OBM_REST_API {
         $ns = 'obm/v1';
         $perm = ['permission_callback' => [$this, 'check_permission']];
         register_rest_route($ns, '/leads', array_merge(['methods' => 'GET', 'callback' => [$this, 'get_leads']], $perm));
+        register_rest_route($ns, '/leads', array_merge(['methods' => 'POST', 'callback' => [$this, 'create_lead']], $perm));
         register_rest_route($ns, '/leads/(?P<id>\d+)', array_merge(['methods' => 'GET', 'callback' => [$this, 'get_lead']], $perm));
         register_rest_route($ns, '/leads/(?P<id>\d+)', array_merge(['methods' => 'PATCH', 'callback' => [$this, 'update_lead']], $perm));
         register_rest_route($ns, '/leads/(?P<id>\d+)/book', array_merge(['methods' => 'POST', 'callback' => [$this, 'book_lead']], $perm));
@@ -51,6 +52,37 @@ class OBM_REST_API {
         return rest_ensure_response($out);
     }
 
+    public function create_lead($req) {
+        $data = [
+            'name' => sanitize_text_field($req->get_param('name') ?? ''),
+            'email' => sanitize_email($req->get_param('email') ?? ''),
+            'phone' => sanitize_text_field($req->get_param('phone') ?? ''),
+            'requested_date' => sanitize_text_field($req->get_param('requested_date') ?? ''),
+            'backup_date' => sanitize_text_field($req->get_param('backup_date') ?? ''),
+            'start_time' => sanitize_text_field($req->get_param('start_time') ?? ''),
+            'guests' => intval($req->get_param('guests') ?? 0),
+            'guests_under_6' => intval($req->get_param('guests_under_6') ?? 0),
+            'message' => sanitize_textarea_field($req->get_param('message') ?? ''),
+            'notes' => sanitize_textarea_field($req->get_param('notes') ?? ''),
+            'status' => sanitize_text_field($req->get_param('status') ?? 'proposed'),
+            'service_duration' => sanitize_text_field($req->get_param('service_duration') ?? ''),
+            'payment_status' => sanitize_text_field($req->get_param('payment_status') ?? 'none'),
+            'staff_id' => intval($req->get_param('staff_id') ?? 0),
+        ];
+        if (empty($data['name'])) return new WP_Error('missing_name', 'Name is required', ['status' => 400]);
+        $lead_id = OBM_DB::insert_lead($data);
+        if (!$lead_id) return new WP_Error('insert_failed', 'Failed to create', ['status' => 500]);
+        $lead = OBM_DB::get_lead($lead_id);
+        $gcal = OBM_Google_Calendar::get_instance();
+        if ($gcal->is_connected()) {
+            $event = $gcal->create_event($lead);
+            if ($event && isset($event['id'])) {
+                OBM_DB::update_lead($lead_id, ['google_event_id' => $event['id']]);
+            }
+        }
+        return rest_ensure_response(['id' => $lead_id, 'status' => 'created']);
+    }
+
     public function get_lead($req) {
         $l = OBM_DB::get_lead($req['id']);
         if (!$l) return new WP_Error('not_found', 'Not found', ['status' => 404]);
@@ -64,7 +96,7 @@ class OBM_REST_API {
         $id = $req['id'];
         $lead = OBM_DB::get_lead($id);
         $data = [];
-        foreach (['notes', 'start_time', 'service_duration', 'staff_id', 'payment_status'] as $f) {
+        foreach (['notes', 'requested_date', 'start_time', 'service_duration', 'staff_id', 'payment_status'] as $f) {
             $v = $req->get_param($f);
             if ($v !== null) $data[$f] = sanitize_text_field($v);
         }

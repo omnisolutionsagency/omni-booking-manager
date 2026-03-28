@@ -15,6 +15,7 @@ class OBM_Integration_Waivers {
         add_action('wp_ajax_nopriv_obm_sign_waiver', [$this, 'handle_sign']);
         add_action('wp_ajax_obm_sign_waiver', [$this, 'handle_sign']);
         add_action('wp_ajax_obm_send_waiver', [$this, 'ajax_send_waiver']);
+        add_action('wp_ajax_obm_download_waiver', [$this, 'download_waiver']);
     }
 
     public function query_vars($vars) {
@@ -111,6 +112,102 @@ class OBM_Integration_Waivers {
         wp_send_json_success(['message' => 'Waiver signed successfully']);
     }
 
+    public function download_waiver() {
+        if (!current_user_can('obm_manage_bookings')) wp_die('Unauthorized');
+        $lead_id = intval($_GET['lead_id'] ?? 0);
+        $lead = OBM_DB::get_lead($lead_id);
+        if (!$lead) wp_die('Lead not found');
+
+        $waiver = $this->get_waiver($lead_id);
+        if (!$waiver) wp_die('No signed waiver found for this lead');
+
+        $biz = obm_get('business_name', get_bloginfo('name'));
+        $brand = obm_get('brand_color', '#2c5f2d');
+        $logo_url = '';
+        $custom_logo_id = get_theme_mod('custom_logo');
+        if ($custom_logo_id) {
+            $logo = wp_get_attachment_image_src($custom_logo_id, 'medium');
+            if ($logo) $logo_url = $logo[0];
+        }
+
+        ?><!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Waiver - <?php echo esc_html($lead->name); ?> - <?php echo esc_html($biz); ?></title>
+<style>
+@media print { body{margin:0;} .no-print{display:none!important;} @page{margin:0.75in;} }
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:Georgia,"Times New Roman",serif;color:#333;max-width:800px;margin:0 auto;padding:40px 20px;}
+.print-bar{background:#f5f5f5;padding:12px 20px;border-radius:8px;margin-bottom:30px;display:flex;justify-content:space-between;align-items:center;}
+.print-bar button{padding:10px 24px;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;color:#fff;background:<?php echo esc_attr($brand); ?>;}
+.header{text-align:center;padding-bottom:20px;border-bottom:2px solid <?php echo esc_attr($brand); ?>;margin-bottom:25px;}
+.header img{max-width:200px;max-height:80px;margin-bottom:10px;}
+.header h1{font-size:22px;color:<?php echo esc_attr($brand); ?>;margin-bottom:4px;}
+.header p{color:#666;font-size:14px;}
+.section{margin-bottom:20px;}
+.section h2{font-size:16px;color:<?php echo esc_attr($brand); ?>;border-bottom:1px solid #ddd;padding-bottom:6px;margin-bottom:10px;}
+.info-table{width:100%;font-size:14px;margin-bottom:15px;}
+.info-table td{padding:5px 10px;vertical-align:top;}
+.info-table td:first-child{font-weight:700;width:140px;color:#555;}
+.waiver-text{font-size:13px;line-height:1.8;white-space:pre-wrap;padding:15px;background:#fafafa;border:1px solid #eee;border-radius:6px;}
+.signature-block{margin-top:20px;padding:20px;border:1px solid #ddd;border-radius:6px;}
+.signature-block img{max-width:300px;max-height:120px;display:block;margin:10px 0;}
+.signature-line{border-bottom:1px solid #333;display:inline-block;min-width:200px;margin-bottom:4px;}
+.meta{font-size:11px;color:#888;margin-top:20px;padding-top:10px;border-top:1px solid #eee;text-align:center;}
+</style>
+</head>
+<body>
+<div class="print-bar no-print">
+    <span>Waiver for <strong><?php echo esc_html($lead->name); ?></strong></span>
+    <div>
+        <button onclick="window.print()">Print / Save as PDF</button>
+    </div>
+</div>
+
+<div class="header">
+    <?php if ($logo_url): ?><img src="<?php echo esc_url($logo_url); ?>" alt="<?php echo esc_attr($biz); ?>"><?php endif; ?>
+    <h1><?php echo esc_html($biz); ?></h1>
+    <p>Liability & Consent Waiver</p>
+</div>
+
+<div class="section">
+    <h2>Client Information</h2>
+    <table class="info-table">
+    <tr><td>Name</td><td><?php echo esc_html($lead->name); ?></td></tr>
+    <tr><td>Email</td><td><?php echo esc_html($lead->email); ?></td></tr>
+    <tr><td>Phone</td><td><?php echo esc_html($lead->phone); ?></td></tr>
+    <tr><td>Booking Date</td><td><?php echo esc_html($lead->requested_date); ?></td></tr>
+    <tr><td>Guests</td><td><?php echo $lead->guests; ?><?php if ($lead->guests_under_6): ?> (<?php echo $lead->guests_under_6; ?> under 6)<?php endif; ?></td></tr>
+    </table>
+</div>
+
+<div class="section">
+    <h2>Waiver Agreement</h2>
+    <div class="waiver-text"><?php echo esc_html($waiver->waiver_text); ?></div>
+</div>
+
+<div class="section">
+    <h2>Signature</h2>
+    <div class="signature-block">
+        <table class="info-table">
+        <tr><td>Signed By</td><td><?php echo esc_html($waiver->signed_name); ?></td></tr>
+        <tr><td>Date Signed</td><td><?php echo date('F j, Y \a\t g:i A', strtotime($waiver->signed_at)); ?></td></tr>
+        <tr><td>IP Address</td><td><?php echo esc_html($waiver->ip_address); ?></td></tr>
+        </table>
+        <p style="font-weight:700;margin-top:10px;">Signature:</p>
+        <img src="<?php echo $waiver->signature_data; ?>" alt="Signature">
+    </div>
+</div>
+
+<div class="meta">
+    Document generated <?php echo date('F j, Y \a\t g:i A'); ?> | <?php echo esc_html($biz); ?> | Powered by Omni Booking Manager
+</div>
+</body>
+</html><?php
+        exit;
+    }
+
     public function get_waiver($lead_id) {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare(
@@ -129,22 +226,21 @@ class OBM_Integration_Waivers {
     }
 
     public function add_menu() {
-        add_submenu_page('obm-dashboard', 'Waiver Settings', 'Waivers', 'manage_options', 'obm-int-waivers', [$this, 'render_settings']);
+        // Settings rendered as tab under Settings page
     }
 
     public function save_settings() {
         check_admin_referer('obm_waiver_settings_action');
         update_option('obm_waiver_text', sanitize_textarea_field($_POST['waiver_text']));
         flush_rewrite_rules();
-        wp_redirect(admin_url('admin.php?page=obm-int-waivers&msg=saved'));
+        wp_redirect(admin_url('admin.php?page=obm-settings&tab=waivers&msg=saved'));
         exit;
     }
 
     public function render_settings() {
         $text = get_option('obm_waiver_text', $this->default_waiver_text());
         ?>
-        <div class="wrap obm-wrap">
-        <h1>Liability Waiver Settings</h1>
+        <div>
         <?php if (isset($_GET['msg'])): ?>
         <div class="notice notice-success"><p>Settings saved.</p></div>
         <?php endif; ?>

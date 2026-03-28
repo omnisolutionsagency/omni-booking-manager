@@ -245,7 +245,7 @@ class OBM_Integration_Stripe {
     }
 
     public function add_menu() {
-        add_submenu_page('obm-dashboard', 'Payments', 'Payments', 'manage_options', 'obm-int-stripe', [$this, 'render_settings']);
+        // Settings rendered as tab under Settings page
     }
 
     public function save_settings() {
@@ -254,14 +254,13 @@ class OBM_Integration_Stripe {
         update_option('obm_stripe_publishable_key', sanitize_text_field($_POST['publishable_key']));
         update_option('obm_stripe_webhook_secret', sanitize_text_field($_POST['webhook_secret']));
         update_option('obm_stripe_deposit_amount', floatval($_POST['deposit_amount']));
-        wp_redirect(admin_url('admin.php?page=obm-int-stripe&msg=saved'));
+        wp_redirect(admin_url('admin.php?page=obm-settings&tab=payments&msg=saved'));
         exit;
     }
 
     public function render_settings() {
         ?>
-        <div class="wrap obm-wrap">
-        <h1>Stripe Payments Settings</h1>
+        <div>
         <?php if (isset($_GET['msg'])): ?>
         <div class="notice notice-success"><p>Settings saved.</p></div>
         <?php endif; ?>

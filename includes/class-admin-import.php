@@ -13,12 +13,12 @@ class OBM_Admin_Import {
     public function handle_import() {
         check_admin_referer('obm_import_action');
         if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
-            wp_redirect(admin_url('admin.php?page=obm-import&msg=error&detail=upload'));
+            wp_redirect(admin_url('admin.php?page=obm-settings&tab=import&msg=error&detail=upload'));
             exit;
         }
         $handle = fopen($_FILES['csv_file']['tmp_name'], 'r');
         if (!$handle) {
-            wp_redirect(admin_url('admin.php?page=obm-import&msg=error&detail=open'));
+            wp_redirect(admin_url('admin.php?page=obm-settings&tab=import&msg=error&detail=open'));
             exit;
         }
         $header = fgetcsv($handle);
@@ -50,7 +50,7 @@ class OBM_Admin_Import {
         }
         if (!isset($indexes['name'])) {
             fclose($handle);
-            wp_redirect(admin_url('admin.php?page=obm-import&msg=error&detail=no_name_column'));
+            wp_redirect(admin_url('admin.php?page=obm-settings&tab=import&msg=error&detail=no_name_column'));
             exit;
         }
 
@@ -73,7 +73,7 @@ class OBM_Admin_Import {
             $imported++;
         }
         fclose($handle);
-        wp_redirect(admin_url("admin.php?page=obm-import&msg=success&imported=$imported&skipped=$skipped"));
+        wp_redirect(admin_url("admin.php?page=obm-settings&tab=import&msg=success&imported=$imported&skipped=$skipped"));
         exit;
     }
 
@@ -84,7 +84,7 @@ class OBM_Admin_Import {
         // Check if Elementor submissions table exists
         $table = $wpdb->prefix . 'e_submissions';
         if ($wpdb->get_var("SHOW TABLES LIKE '$table'") !== $table) {
-            wp_redirect(admin_url('admin.php?page=obm-import&msg=error&detail=no_elementor_submissions'));
+            wp_redirect(admin_url('admin.php?page=obm-settings&tab=import&msg=error&detail=no_elementor_submissions'));
             exit;
         }
 
@@ -155,7 +155,7 @@ class OBM_Admin_Import {
             $imported++;
         }
 
-        wp_redirect(admin_url("admin.php?page=obm-import&msg=submissions&imported=$imported&skipped=$skipped"));
+        wp_redirect(admin_url("admin.php?page=obm-settings&tab=import&msg=submissions&imported=$imported&skipped=$skipped"));
         exit;
     }
 
@@ -163,8 +163,7 @@ class OBM_Admin_Import {
         $settings = obm_get_settings();
         $has_form = !empty($settings['elementor_form_id']);
         ?>
-        <div class="wrap obm-wrap">
-        <h1>Import Bookings</h1>
+        <div>
         <?php if (isset($_GET['msg'])): ?>
             <?php if ($_GET['msg'] === 'success'): ?>
             <div class="notice notice-success"><p>Imported <?php echo intval($_GET['imported']); ?> leads. Skipped <?php echo intval($_GET['skipped']); ?>.</p></div>
@@ -184,7 +183,7 @@ class OBM_Admin_Import {
                 <?php if ($has_form): ?>
                 <span class="description">Checking form: <code><?php echo esc_html($settings['elementor_form_id']); ?></code> (configured in wizard). Submissions already in the system will be skipped.</span>
                 <?php else: ?>
-                <span class="description">No specific form configured — will check all Elementor submissions. Configure a form in the <a href="<?php echo admin_url('admin.php?page=obm-settings&tab=wizard'); ?>">Setup Wizard</a> to narrow it down.</span>
+                <span class="description">No specific form configured — will check all Elementor submissions. Configure a form in the <a href="<?php echo admin_url('admin.php?page=obm-wizard'); ?>">Setup Wizard</a> to narrow it down.</span>
                 <?php endif; ?>
             </p>
             <p><input type="submit" class="button button-primary" value="Check Existing Submissions"></p>

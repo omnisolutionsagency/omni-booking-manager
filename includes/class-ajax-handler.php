@@ -6,7 +6,7 @@ class OBM_Ajax_Handler {
         return self::$instance;
     }
     private function __construct() {
-        $actions = ['update_status', 'save_notes', 'assign_staff', 'set_duration', 'set_start_time', 'set_payment', 'use_backup_date'];
+        $actions = ['update_status', 'save_notes', 'assign_staff', 'set_duration', 'set_start_time', 'set_payment', 'set_requested_date', 'use_backup_date'];
         foreach ($actions as $a) {
             add_action("wp_ajax_obm_{$a}", [$this, $a]);
         }
@@ -86,6 +86,21 @@ class OBM_Ajax_Handler {
     public function set_duration() {
         $this->verify();
         OBM_DB::update_lead(intval($_POST['lead_id']), ['service_duration' => sanitize_text_field($_POST['duration'])]);
+        wp_send_json_success();
+    }
+
+    public function set_requested_date() {
+        $this->verify();
+        $id = intval($_POST['lead_id']);
+        $date = sanitize_text_field($_POST['requested_date']);
+        OBM_DB::update_lead($id, ['requested_date' => $date]);
+        // Update Google Calendar if connected
+        $lead = OBM_DB::get_lead($id);
+        $gcal = OBM_Google_Calendar::get_instance();
+        if ($gcal->is_connected() && $lead->google_event_id && $lead->status === 'booked') {
+            $staff = $lead->staff_id ? OBM_DB::get_staff_member($lead->staff_id) : null;
+            $gcal->update_event_booked($lead->google_event_id, $lead, $staff);
+        }
         wp_send_json_success();
     }
 

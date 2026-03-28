@@ -40,6 +40,12 @@ $(".obm-duration").on("change",function(){
     var el=$(this),id=el.data("id");
     $.post(obm.ajax_url,{action:"obm_set_duration",nonce:obm.nonce,lead_id:id,duration:el.val()});
 });
+$(".obm-requested-date").on("change",function(){
+    var el=$(this),id=el.data("id");
+    $.post(obm.ajax_url,{action:"obm_set_requested_date",nonce:obm.nonce,lead_id:id,requested_date:el.val()},function(r){
+        if(r.success) location.reload();
+    });
+});
 $(".obm-start-time").on("change",function(){
     var el=$(this),id=el.data("id");
     $.post(obm.ajax_url,{action:"obm_set_start_time",nonce:obm.nonce,lead_id:id,start_time:el.val()});
