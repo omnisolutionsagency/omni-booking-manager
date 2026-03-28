@@ -1,0 +1,29 @@
+name: Build Release ZIP
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build plugin ZIP
+        run: |
+          mkdir -p build/omni-booking-manager
+          rsync -av --exclude='.git' \
+                    --exclude='.github' \
+                    --exclude='.gitignore' \
+                    --exclude='build' \
+                    --exclude='CONTRIBUTING.md' \
+                    --exclude='README.md' \
+                    ./ build/omni-booking-manager/
+          cd build && zip -r omni-booking-manager.zip omni-booking-manager/
+
+      - name: Upload ZIP to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/omni-booking-manager.zip
