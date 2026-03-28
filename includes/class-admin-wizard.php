@@ -157,6 +157,11 @@ class OBM_Admin_Wizard {
         if ($step === 3) {
             // Google Calendar (optional) + finalize
             update_option('obm_setup_complete', true);
+            // Auto-enable Phase 1 integrations if none are active yet
+            $active = get_option('obm_active_integrations', []);
+            if (empty($active)) {
+                update_option('obm_active_integrations', ['stripe', 'emails', 'waivers']);
+            }
             // Flush rewrite rules for PWA
             OBM_PWA::activate();
             wp_redirect(admin_url('admin.php?page=obm-dashboard&setup=complete'));
