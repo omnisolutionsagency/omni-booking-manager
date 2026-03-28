@@ -21,9 +21,9 @@ class OBM_Admin_Wizard {
 
     public function add_menu() {
         if (!obm_is_setup_complete()) {
-            add_menu_page('Setup Wizard', 'Booking Setup', 'manage_options', 'obm-wizard', [$this, 'render'], 'dashicons-admin-generic', 29);
+            add_menu_page('Omni Booking Setup', 'Booking Setup', 'manage_options', 'obm-wizard', [$this, 'render'], 'dashicons-admin-generic', 29);
+            add_submenu_page(null, 'Setup Wizard', 'Setup Wizard', 'manage_options', 'obm-wizard', [$this, 'render']);
         }
-        add_submenu_page(obm_is_setup_complete() ? 'obm-dashboard' : null, 'Setup Wizard', 'Setup Wizard', 'manage_options', 'obm-wizard', [$this, 'render']);
     }
 
     /**
@@ -120,6 +120,13 @@ class OBM_Admin_Wizard {
         return $mapping;
     }
 
+    private function wizard_url($step) {
+        if (obm_is_setup_complete()) {
+            return admin_url("admin.php?page=obm-settings&tab=wizard&step=$step");
+        }
+        return admin_url("admin.php?page=obm-wizard&step=$step");
+    }
+
     public function handle_save() {
         check_admin_referer('obm_wizard_action');
 
@@ -133,7 +140,7 @@ class OBM_Admin_Wizard {
             $settings['staff_label'] = sanitize_text_field($_POST['staff_label'] ?: 'Staff');
             $settings['duration_options'] = sanitize_text_field($_POST['duration_options']);
             update_option('obm_settings', $settings);
-            wp_redirect(admin_url('admin.php?page=obm-wizard&step=2'));
+            wp_redirect($this->wizard_url(2));
             exit;
         }
 
@@ -150,12 +157,13 @@ class OBM_Admin_Wizard {
             }
             $settings['field_mapping'] = $mapping;
             update_option('obm_settings', $settings);
-            wp_redirect(admin_url('admin.php?page=obm-wizard&step=3'));
+            wp_redirect($this->wizard_url(3));
             exit;
         }
 
         if ($step === 3) {
             // Google Calendar (optional) + finalize
+            $was_complete = obm_is_setup_complete();
             update_option('obm_setup_complete', true);
             // Auto-enable Phase 1 integrations if none are active yet
             $active = get_option('obm_active_integrations', []);
@@ -164,7 +172,13 @@ class OBM_Admin_Wizard {
             }
             // Flush rewrite rules for PWA
             OBM_PWA::activate();
-            wp_redirect(admin_url('admin.php?page=obm-dashboard&setup=complete'));
+            if ($was_complete) {
+                // Re-running wizard from settings — go back to settings
+                wp_redirect(admin_url('admin.php?page=obm-settings&msg=wizard_complete'));
+            } else {
+                // First-time setup — go to dashboard
+                wp_redirect(admin_url('admin.php?page=obm-dashboard&setup=complete'));
+            }
             exit;
         }
     }

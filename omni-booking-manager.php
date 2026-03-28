@@ -1,10 +1,15 @@
 <?php
 /**
  * Plugin Name: Omni Booking Manager
+ * Plugin URI: https://omnisolutionsagency.com/omni-booking-manager
  * Description: Lead management with Google Calendar, payments, waivers, email sequences, and mobile PWA.
  * Version: 2.0.0
  * Author: Omni Solutions Agency LLC
+ * Author URI: https://omnisolutionsagency.com
+ * License: GPL v2 or later
  * Text Domain: omni-booking-manager
+ * Requires at least: 6.0
+ * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 

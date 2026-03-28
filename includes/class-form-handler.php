@@ -57,7 +57,7 @@ class OBM_Form_Handler {
 
         if (OBM_DB::is_date_blocked($data['requested_date'])) {
             $admin_email = get_option('admin_email');
-            wp_mail($admin_email, 'Booking Manager: Blocked Date Request',
+            wp_mail($admin_email, 'Omni Booking Manager: Blocked Date Request',
                 "A lead requested a blocked date: {$data['requested_date']}\nName: {$data['name']}");
         }
 

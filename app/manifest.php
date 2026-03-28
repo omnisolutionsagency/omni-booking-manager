@@ -4,8 +4,8 @@ header('Content-Type: application/json');
 $biz = obm_get('business_name', get_bloginfo('name'));
 $color = obm_get('brand_color', '#2c5f2d');
 echo json_encode([
-    'name' => $biz . ' Booking Manager',
-    'short_name' => $biz,
+    'name' => $biz . ' Bookings',
+    'short_name' => 'Bookings',
     'start_url' => '/booking-app/',
     'display' => 'standalone',
     'background_color' => '#1a1a2e',

@@ -10,6 +10,7 @@ class OBM_Admin_Settings {
         add_action('admin_post_obm_save_settings', [$this, 'handle_save']);
         add_action('admin_post_obm_disconnect_google', [$this, 'handle_disconnect']);
         add_action('admin_post_obm_set_calendar', [$this, 'handle_set_calendar']);
+        add_action('admin_post_obm_export_csv', [$this, 'handle_export']);
     }
 
     public function handle_oauth() {
@@ -49,6 +50,40 @@ class OBM_Admin_Settings {
         exit;
     }
 
+    public function handle_export() {
+        check_admin_referer('obm_settings_action');
+        if (!current_user_can('manage_options')) wp_die('Unauthorized');
+
+        $export_type = sanitize_text_field($_POST['export_type'] ?? 'leads');
+        global $wpdb;
+        $prefix = OBM_DB::get_prefix();
+
+        if ($export_type === 'staff') {
+            $rows = $wpdb->get_results("SELECT * FROM {$prefix}staff ORDER BY name ASC", ARRAY_A);
+            $filename = 'obm-staff-' . date('Y-m-d') . '.csv';
+        } elseif ($export_type === 'blocked_dates') {
+            $rows = $wpdb->get_results("SELECT * FROM {$prefix}blocked_dates ORDER BY date_start ASC", ARRAY_A);
+            $filename = 'obm-blocked-dates-' . date('Y-m-d') . '.csv';
+        } else {
+            $rows = $wpdb->get_results("SELECT l.*, s.name as staff_name FROM {$prefix}leads l LEFT JOIN {$prefix}staff s ON l.staff_id = s.id ORDER BY l.requested_date DESC", ARRAY_A);
+            $filename = 'obm-leads-' . date('Y-m-d') . '.csv';
+        }
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=' . $filename);
+        $output = fopen('php://output', 'w');
+
+        if (!empty($rows)) {
+            fputcsv($output, array_keys($rows[0]));
+            foreach ($rows as $row) {
+                fputcsv($output, $row);
+            }
+        }
+
+        fclose($output);
+        exit;
+    }
+
     public function handle_set_calendar() {
         check_admin_referer('obm_settings_action');
         update_option('obm_google_calendar_id', sanitize_text_field($_POST['calendar_id']));
@@ -57,17 +92,26 @@ class OBM_Admin_Settings {
     }
 
     public function render() {
+        $tab = sanitize_text_field($_GET['tab'] ?? 'general');
         $gcal = OBM_Google_Calendar::get_instance();
         $connected = $gcal->is_connected();
         $settings = obm_get_settings();
         ?>
         <div class="wrap obm-wrap">
-        <h1>Booking Manager Settings</h1>
-        <?php if (isset($_GET['msg'])): ?>
+        <h1>Omni Booking Manager Settings</h1>
+        <nav class="nav-tab-wrapper">
+            <a href="?page=obm-settings&tab=general" class="nav-tab <?php echo $tab === 'general' ? 'nav-tab-active' : ''; ?>">General</a>
+            <a href="?page=obm-settings&tab=google" class="nav-tab <?php echo $tab === 'google' ? 'nav-tab-active' : ''; ?>">Google Calendar</a>
+            <a href="?page=obm-settings&tab=export" class="nav-tab <?php echo $tab === 'export' ? 'nav-tab-active' : ''; ?>">Export</a>
+            <a href="?page=obm-settings&tab=wizard" class="nav-tab <?php echo $tab === 'wizard' ? 'nav-tab-active' : ''; ?>">Setup Wizard</a>
+        </nav>
+        <div style="margin-top:15px;">
+
+        <?php if (isset($_GET['msg']) && $tab !== 'wizard'): ?>
         <div class="notice notice-success"><p>Settings <?php echo esc_html($_GET['msg']); ?>.</p></div>
         <?php endif; ?>
 
-        <h2>General</h2>
+        <?php if ($tab === 'general'): ?>
         <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
             <input type="hidden" name="action" value="obm_save_settings">
             <?php wp_nonce_field('obm_settings_action'); ?>
@@ -82,7 +126,11 @@ class OBM_Admin_Settings {
             <p><input type="submit" class="button button-primary" value="Save Settings"></p>
         </form>
         <hr>
-        <h2>Google Calendar</h2>
+        <h2>Setup Info</h2>
+        <p>Authorized redirect URI:<br><code><?php echo admin_url('admin.php?page=obm-settings&obm_oauth=1'); ?></code></p>
+        <p>Mobile App URL:<br><code><?php echo home_url('/booking-app/'); ?></code></p>
+
+        <?php elseif ($tab === 'google'): ?>
         <?php if ($connected): ?>
             <p style="color:green;"><strong>Connected</strong></p>
             <h3>Select Calendar</h3>
@@ -107,14 +155,38 @@ class OBM_Admin_Settings {
             <?php if (get_option('obm_google_client_id')): ?>
             <p><a href="<?php echo esc_url($gcal->get_auth_url()); ?>" class="button button-primary">Connect to Google Calendar</a></p>
             <?php else: ?>
-            <p>Enter API credentials above first.</p>
+            <p>Enter Google API credentials on the <a href="?page=obm-settings&tab=general">General tab</a> first.</p>
             <?php endif; ?>
         <?php endif; ?>
-        <hr>
-        <h2>Setup</h2>
-        <p>Authorized redirect URI:<br><code><?php echo admin_url('admin.php?page=obm-settings&obm_oauth=1'); ?></code></p>
-        <p>Mobile App URL:<br><code><?php echo home_url('/booking-app/'); ?></code></p>
-        <p><a href="<?php echo admin_url('admin.php?page=obm-wizard'); ?>" class="button">Re-run Setup Wizard</a></p>
+
+        <?php elseif ($tab === 'export'): ?>
+        <p>Download all booking data as CSV files.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                <input type="hidden" name="action" value="obm_export_csv">
+                <input type="hidden" name="export_type" value="leads">
+                <?php wp_nonce_field('obm_settings_action'); ?>
+                <input type="submit" class="button button-primary" value="Export All Leads">
+            </form>
+            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                <input type="hidden" name="action" value="obm_export_csv">
+                <input type="hidden" name="export_type" value="staff">
+                <?php wp_nonce_field('obm_settings_action'); ?>
+                <input type="submit" class="button" value="Export Staff">
+            </form>
+            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                <input type="hidden" name="action" value="obm_export_csv">
+                <input type="hidden" name="export_type" value="blocked_dates">
+                <?php wp_nonce_field('obm_settings_action'); ?>
+                <input type="submit" class="button" value="Export Blocked Dates">
+            </form>
+        </div>
+
+        <?php elseif ($tab === 'wizard'): ?>
+        <?php OBM_Admin_Wizard::get_instance()->render(); ?>
+
+        <?php endif; ?>
+        </div>
         </div>
         <?php
     }

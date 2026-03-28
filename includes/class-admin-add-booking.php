@@ -6,12 +6,7 @@ class OBM_Admin_Add_Booking {
         return self::$instance;
     }
     private function __construct() {
-        add_action('admin_menu', [$this, 'add_menu']);
         add_action('admin_post_obm_add_booking', [$this, 'handle_add']);
-    }
-    public function add_menu() {
-        if (!obm_is_setup_complete()) return;
-        add_submenu_page('obm-dashboard', 'Add Booking', 'Add Booking', 'obm_manage_bookings', 'obm-add-booking', [$this, 'render']);
     }
     public function handle_add() {
         check_admin_referer('obm_add_booking_action');

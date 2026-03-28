@@ -9,7 +9,7 @@ class OBM_Integrations {
     private function __construct() {
         $this->register_integrations();
         $this->load_active();
-        add_action('admin_menu', [$this, 'add_menu']);
+        add_action('admin_menu', [$this, 'add_menu'], 99);
         add_action('admin_post_obm_save_integrations', [$this, 'handle_save']);
     }
     private function register_integrations() {

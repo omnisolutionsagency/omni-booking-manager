@@ -23,11 +23,11 @@ class OBM_Admin_Dashboard {
 
     public function add_menu() {
         if (!obm_is_setup_complete()) return;
-        $biz = obm_get('business_name', 'Bookings');
         $cap = 'obm_manage_bookings';
         $staff_label = obm_get('staff_label', 'Staff');
-        add_menu_page($biz, $biz, $cap, 'obm-dashboard', [$this, 'render_dashboard'], 'dashicons-calendar-alt', 30);
+        add_menu_page('Bookings', 'Bookings', $cap, 'obm-dashboard', [$this, 'render_dashboard'], 'dashicons-calendar-alt', 30);
         add_submenu_page('obm-dashboard', 'All Leads', 'All Leads', $cap, 'obm-dashboard', [$this, 'render_dashboard']);
+        add_submenu_page('obm-dashboard', 'Add Booking', 'Add Booking', $cap, 'obm-add-booking', [OBM_Admin_Add_Booking::get_instance(), 'render']);
         add_submenu_page('obm-dashboard', 'Import', 'Import', 'manage_options', 'obm-import', [OBM_Admin_Import::get_instance(), 'render']);
         add_submenu_page('obm-dashboard', $staff_label, $staff_label, $cap, 'obm-staff', [OBM_Admin_Staff::get_instance(), 'render']);
         add_submenu_page('obm-dashboard', 'Blocked Dates', 'Blocked Dates', $cap, 'obm-blocked-dates', [OBM_Admin_Blocked_Dates::get_instance(), 'render']);
@@ -121,7 +121,7 @@ class OBM_Admin_Dashboard {
             'declined' => count(OBM_DB::get_leads(['status' => 'declined'])),
             'completed' => count(OBM_DB::get_leads(['status' => 'completed']))
         ];
-        $biz = obm_get('business_name', 'Booking Manager');
+        $biz = obm_get('business_name', get_bloginfo('name'));
 
         if (isset($_GET['msg']) && $_GET['msg'] === 'booking_added') {
             echo '<div class="notice notice-success"><p>Booking added successfully.</p></div>';
