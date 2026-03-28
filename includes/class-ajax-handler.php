@@ -72,7 +72,14 @@ class OBM_Ajax_Handler {
 
     public function assign_staff() {
         $this->verify();
-        OBM_DB::update_lead(intval($_POST['lead_id']), ['staff_id' => intval($_POST['staff_id'])]);
+        $lead_id = intval($_POST['lead_id']);
+        $new_staff_id = intval($_POST['staff_id']);
+        $lead = OBM_DB::get_lead($lead_id);
+        OBM_DB::update_lead($lead_id, ['staff_id' => $new_staff_id]);
+        // Notify new staff if lead is booked and staff changed
+        if ($lead && $lead->status === 'booked' && $new_staff_id > 0 && $new_staff_id != $lead->staff_id) {
+            OBM_Admin_Staff::send_staff_assignment_email($lead_id);
+        }
         wp_send_json_success();
     }
 

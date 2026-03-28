@@ -46,7 +46,7 @@ class OBM_Plugin {
     }
     public function maybe_upgrade() {
         $db_ver = get_option('obm_db_version', '1.0.0');
-        if (version_compare($db_ver, '2.0.0', '<')) {
+        if (version_compare($db_ver, '2.1.0', '<')) {
             OBM_DB_V2::upgrade();
         }
     }

@@ -34,6 +34,12 @@ class OBM_DB_V2 {
             $wpdb->query("ALTER TABLE {$p}leads ADD COLUMN total_amount DECIMAL(10,2) DEFAULT 0 AFTER deposit_amount");
         }
 
+        // Add receive_digest to staff table if missing
+        $staff_cols = $wpdb->get_col("DESCRIBE {$p}staff", 0);
+        if (!in_array('receive_digest', $staff_cols)) {
+            $wpdb->query("ALTER TABLE {$p}staff ADD COLUMN receive_digest TINYINT DEFAULT 1 AFTER active");
+        }
+
         // Payments table
         dbDelta("CREATE TABLE {$p}payments (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -98,7 +104,7 @@ class OBM_DB_V2 {
             self::seed_templates();
         }
 
-        update_option('obm_db_version', '2.0.0');
+        update_option('obm_db_version', '2.1.0');
     }
 
     private static function seed_templates() {

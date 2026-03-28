@@ -62,12 +62,17 @@ class OBM_REST_API {
 
     public function update_lead($req) {
         $id = $req['id'];
+        $lead = OBM_DB::get_lead($id);
         $data = [];
         foreach (['notes', 'start_time', 'service_duration', 'staff_id', 'payment_status'] as $f) {
             $v = $req->get_param($f);
             if ($v !== null) $data[$f] = sanitize_text_field($v);
         }
         if (!empty($data)) OBM_DB::update_lead($id, $data);
+        // Notify new staff if reassigned on a booked lead
+        if ($lead && isset($data['staff_id']) && $lead->status === 'booked' && $data['staff_id'] > 0 && $data['staff_id'] != $lead->staff_id) {
+            OBM_Admin_Staff::send_staff_assignment_email($id);
+        }
         return $this->get_lead($req);
     }
 
