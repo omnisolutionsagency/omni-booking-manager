@@ -8,6 +8,8 @@
 .obm-stat-box.booked{border-left:4px solid #2c5f2d;}
 .obm-stat-box.declined{border-left:4px solid #cc3333;}
 .obm-stat-box.completed{border-left:4px solid #888;}
+.obm-stat-box.waiver-pending{border-left:4px solid #d63638;}
+.obm-stat-box.waiver-signed{border-left:4px solid #00a32a;}
 .obm-status{padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;text-transform:uppercase;}
 .obm-status-proposed{background:#fef3cd;color:#856404;}
 .obm-status-booked{background:#d4edda;color:#155724;}

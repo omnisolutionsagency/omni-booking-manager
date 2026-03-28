@@ -7,18 +7,45 @@ class OBM_Integration_Portal {
     }
 
     private function __construct() {
-        add_action('init', [$this, 'rewrite_rules'], 1);
+        add_rewrite_rule('^my-booking/([a-zA-Z0-9]+)/?$', 'index.php?obm_portal_token=$matches[1]', 'top');
         add_filter('query_vars', [$this, 'query_vars']);
         add_action('template_redirect', [$this, 'serve_portal']);
-    }
-
-    public function rewrite_rules() {
-        add_rewrite_rule('^my-booking/([a-zA-Z0-9]+)/?$', 'index.php?obm_portal_token=$matches[1]', 'top');
+        add_action('admin_menu', [$this, 'add_menu'], 99);
+        add_action('wp_ajax_obm_send_portal_link', [$this, 'ajax_send_portal_link']);
     }
 
     public function query_vars($vars) {
         $vars[] = 'obm_portal_token';
         return $vars;
+    }
+
+    public function add_menu() {
+        // Hidden page — portal settings are minimal, accessed via Integrations
+    }
+
+    public function ajax_send_portal_link() {
+        check_ajax_referer('obm_nonce', 'nonce');
+        if (!current_user_can('obm_manage_bookings')) wp_send_json_error('Unauthorized');
+
+        $lead_id = intval($_POST['lead_id']);
+        $lead = OBM_DB::get_lead($lead_id);
+        if (!$lead || empty($lead->email)) wp_send_json_error('No email');
+
+        $token = $lead->portal_token;
+        if (empty($token)) {
+            $token = $this->generate_token($lead_id);
+        }
+
+        $url = home_url('/my-booking/' . $token);
+        $biz = obm_get('business_name', get_bloginfo('name'));
+        $subject = "{$biz} — Your Booking Details";
+        $body = "Hi {$lead->name},\n\nView your booking details, check payment status, and complete any required steps here:\n\n{$url}\n\nThank you!\n{$biz}";
+
+        if (wp_mail($lead->email, $subject, $body)) {
+            wp_send_json_success(['portal_url' => $url]);
+        } else {
+            wp_send_json_error('Failed to send');
+        }
     }
 
     public function generate_token($lead_id) {

@@ -25,6 +25,7 @@ class OBM_Ajax_Handler {
         $gcal = OBM_Google_Calendar::get_instance();
         switch ($action) {
             case 'book':
+                $old_status = $lead->status;
                 $data = [
                     'status' => 'booked',
                     'service_duration' => sanitize_text_field($_POST['duration'] ?? ''),
@@ -38,21 +39,26 @@ class OBM_Ajax_Handler {
                     $staff = $lead->staff_id ? OBM_DB::get_staff_member($lead->staff_id) : null;
                     $gcal->update_event_booked($lead->google_event_id, $lead, $staff);
                 }
+                do_action('obm_lead_status_changed', $id, $old_status, 'booked');
                 wp_send_json_success(['status' => 'booked']);
                 break;
             case 'decline':
+                $old_status = $lead->status;
                 OBM_DB::update_lead($id, ['status' => 'declined']);
                 if ($gcal->is_connected() && $lead->google_event_id) {
                     $gcal->delete_event($lead->google_event_id);
                     OBM_DB::update_lead($id, ['google_event_id' => '']);
                 }
+                do_action('obm_lead_status_changed', $id, $old_status, 'declined');
                 wp_send_json_success(['status' => 'declined']);
                 break;
             case 'complete':
+                $old_status = $lead->status;
                 OBM_DB::update_lead($id, ['status' => 'completed']);
                 if ($gcal->is_connected() && $lead->google_event_id) {
                     $gcal->update_event_completed($lead->google_event_id, $lead);
                 }
+                do_action('obm_lead_status_changed', $id, $old_status, 'completed');
                 wp_send_json_success(['status' => 'completed']);
                 break;
         }

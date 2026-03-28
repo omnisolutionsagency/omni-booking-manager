@@ -90,10 +90,10 @@ class OBM_Admin_Dashboard {
             <td class="<?php echo $cls; ?>">
             <span class="obm-cal-num"><?php echo $day; ?></span>
             <?php if ($has_leads): foreach ($by_date[$date_str] as $ev): ?>
-            <div class="obm-cal-event obm-cal-<?php echo $ev->status; ?>">
+            <a href="#obm-detail-<?php echo $ev->id; ?>" class="obm-cal-event obm-cal-<?php echo $ev->status; ?>" data-lead-id="<?php echo $ev->id; ?>" style="text-decoration:none;color:inherit;display:block;cursor:pointer;">
                 <?php echo esc_html($ev->name); ?>
                 <?php if ($ev->start_time): ?><small><?php echo esc_html($ev->start_time); ?></small><?php endif; ?>
-            </div>
+            </a>
             <?php endforeach; endif; ?>
             <?php if ($is_blocked): ?><div class="obm-cal-block-label">Blocked</div><?php endif; ?>
             </td>
@@ -109,8 +109,10 @@ class OBM_Admin_Dashboard {
 
     public function render_dashboard() {
         $status = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : '';
+        $waiver_filter = isset($_GET['waiver']) ? sanitize_text_field($_GET['waiver']) : '';
         $args = [];
         if ($status) $args['status'] = $status;
+        if ($waiver_filter) $args['waiver_status'] = $waiver_filter;
         $leads = OBM_DB::get_leads($args);
         $staff_list = OBM_DB::get_staff();
         $staff_label = obm_get('staff_label', 'Staff');
@@ -121,6 +123,14 @@ class OBM_Admin_Dashboard {
             'declined' => count(OBM_DB::get_leads(['status' => 'declined'])),
             'completed' => count(OBM_DB::get_leads(['status' => 'completed']))
         ];
+        $waivers_active = class_exists('OBM_Integration_Waivers') && OBM_Integrations::get_instance()->is_active('waivers');
+        $waiver_counts = [];
+        if ($waivers_active) {
+            global $wpdb;
+            $t = OBM_DB::get_prefix() . 'leads';
+            $waiver_counts['pending'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM $t WHERE waiver_status IN ('pending','') AND status IN ('proposed','booked')");
+            $waiver_counts['signed'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM $t WHERE waiver_status = 'signed'");
+        }
         $biz = obm_get('business_name', get_bloginfo('name'));
 
         if (isset($_GET['msg']) && $_GET['msg'] === 'booking_added') {
@@ -138,9 +148,13 @@ class OBM_Admin_Dashboard {
             <a href="?page=obm-dashboard&status=booked" class="obm-stat-box booked"><span class="num"><?php echo $counts['booked']; ?></span><span class="lbl">Booked</span></a>
             <a href="?page=obm-dashboard&status=declined" class="obm-stat-box declined"><span class="num"><?php echo $counts['declined']; ?></span><span class="lbl">Declined</span></a>
             <a href="?page=obm-dashboard&status=completed" class="obm-stat-box completed"><span class="num"><?php echo $counts['completed']; ?></span><span class="lbl">Completed</span></a>
+            <?php if ($waivers_active): ?>
+            <a href="?page=obm-dashboard&waiver=pending" class="obm-stat-box waiver-pending"><span class="num"><?php echo $waiver_counts['pending']; ?></span><span class="lbl">Waiver Pending</span></a>
+            <a href="?page=obm-dashboard&waiver=signed" class="obm-stat-box waiver-signed"><span class="num"><?php echo $waiver_counts['signed']; ?></span><span class="lbl">Waiver Signed</span></a>
+            <?php endif; ?>
         </div>
         <?php $this->render_calendar(); ?>
-        <h2 style="margin-top:20px;">Leads<?php if ($status) echo ' - ' . ucfirst($status); ?></h2>
+        <h2 style="margin-top:20px;">Leads<?php if ($status) echo ' - ' . ucfirst($status); ?><?php if ($waiver_filter) echo ' - Waiver ' . ucfirst($waiver_filter); ?></h2>
         <table class="wp-list-table widefat fixed striped obm-table">
         <thead><tr>
             <th>Name</th><th>Date</th><th>Time</th><th>Guests</th><th>Status</th><th>Payment</th><th><?php echo esc_html($staff_label); ?></th><th>Actions</th>
@@ -208,8 +222,165 @@ class OBM_Admin_Dashboard {
                     <button class="button obm-action-btn" data-id="<?php echo $l->id; ?>" data-action="decline">Cancel</button>
                     </div>
                     <?php endif; ?>
+                    <?php if (class_exists('OBM_Integration_Waivers') && OBM_Integrations::get_instance()->is_active('waivers')): ?>
+                    <div class="obm-btn-group" style="margin-top:8px;">
+                        <?php
+                        $waiver_status = isset($l->waiver_status) ? $l->waiver_status : '';
+                        if ($waiver_status === 'signed'): ?>
+                            <span style="color:green;font-weight:600;">Waiver Signed</span>
+                        <?php else: ?>
+                            <button class="button obm-send-waiver" data-id="<?php echo $l->id; ?>">Send Waiver</button>
+                            <?php if ($waiver_status === 'pending'): ?>
+                            <span style="color:#d63638;font-size:12px;margin-left:5px;">Sent — awaiting signature</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (class_exists('OBM_Integration_Reviews') && OBM_Integrations::get_instance()->is_active('reviews') && $l->status === 'completed'): ?>
+                    <div class="obm-btn-group" style="margin-top:8px;">
+                        <button class="button obm-send-review" data-id="<?php echo $l->id; ?>">Send Review Request</button>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (class_exists('OBM_Integration_Portal') && OBM_Integrations::get_instance()->is_active('portal')): ?>
+                    <div class="obm-btn-group" style="margin-top:8px;">
+                        <button class="button obm-send-portal" data-id="<?php echo $l->id; ?>">Send Portal Link</button>
+                        <?php if (!empty($l->portal_token)): ?>
+                        <a href="<?php echo esc_url(home_url('/my-booking/' . $l->portal_token)); ?>" target="_blank" class="button" style="font-size:12px;">View Portal</a>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (class_exists('OBM_Integration_Stripe') && OBM_Integrations::get_instance()->is_active('stripe')): ?>
+                    <?php
+                        $payments = OBM_Integration_Stripe::get_instance()->get_payments($l->id);
+                        $deposit_paid = 0;
+                        $balance_paid = 0;
+                        $has_pending_deposit = false;
+                        $has_pending_balance = false;
+                        foreach ($payments as $pay) {
+                            if ($pay->type === 'deposit' && $pay->status === 'paid' && !$pay->refunded) $deposit_paid += $pay->amount;
+                            if ($pay->type === 'balance' && $pay->status === 'paid' && !$pay->refunded) $balance_paid += $pay->amount;
+                            if ($pay->type === 'deposit' && $pay->status === 'pending') $has_pending_deposit = true;
+                            if ($pay->type === 'balance' && $pay->status === 'pending') $has_pending_balance = true;
+                            if ($pay->type === 'full' && $pay->status === 'paid' && !$pay->refunded) { $deposit_paid = $pay->amount; $balance_paid = $pay->amount; }
+                        }
+                        $default_deposit = get_option('obm_stripe_deposit_amount', 50);
+                    ?>
+                    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ddd;">
+                        <strong>Payments</strong>
+
+                        <!-- Deposit -->
+                        <div style="margin-top:6px;padding:8px;background:#f9f9f9;border-radius:6px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <strong style="font-size:13px;">Deposit</strong>
+                                <?php if ($deposit_paid > 0): ?>
+                                <span style="color:green;font-weight:600;font-size:13px;">Paid — $<?php echo number_format($deposit_paid, 2); ?></span>
+                                <?php elseif ($has_pending_deposit): ?>
+                                <span style="color:#d63638;font-size:12px;">Invoice sent — awaiting payment</span>
+                                <?php endif; ?>
+                            </div>
+                            <?php if ($deposit_paid == 0): ?>
+                            <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+                                $<input type="number" class="obm-invoice-amount" data-id="<?php echo $l->id; ?>" value="<?php echo esc_attr($default_deposit); ?>" step="0.01" min="0" style="width:90px;">
+                                <button class="button obm-send-invoice" data-id="<?php echo $l->id; ?>" data-type="deposit">Send Deposit Invoice</button>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Balance -->
+                        <div style="margin-top:6px;padding:8px;background:#f9f9f9;border-radius:6px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <strong style="font-size:13px;">Balance</strong>
+                                <?php if ($balance_paid > 0): ?>
+                                <span style="color:green;font-weight:600;font-size:13px;">Paid — $<?php echo number_format($balance_paid, 2); ?></span>
+                                <?php elseif ($has_pending_balance): ?>
+                                <span style="color:#d63638;font-size:12px;">Invoice sent — awaiting payment</span>
+                                <?php endif; ?>
+                            </div>
+                            <?php if ($balance_paid == 0): ?>
+                            <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+                                $<input type="number" class="obm-balance-amount" data-id="<?php echo $l->id; ?>" value="" step="0.01" min="0" style="width:90px;" placeholder="Balance due">
+                                <button class="button obm-send-invoice" data-id="<?php echo $l->id; ?>" data-type="balance">Send Balance Invoice</button>
+                            </div>
+                            <?php if ($deposit_paid > 0): ?>
+                            <p style="margin:4px 0 0;font-size:11px;color:#666;">Deposit of $<?php echo number_format($deposit_paid, 2); ?> already received. The balance invoice will show the deposit paid.</p>
+                            <?php endif; ?>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Payment History -->
+                        <?php if (!empty($payments)): ?>
+                        <div style="margin-top:8px;font-size:12px;color:#666;">
+                            <strong>History</strong>
+                            <?php foreach ($payments as $pay): ?>
+                            <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #eee;">
+                                <span><?php echo ucfirst($pay->type); ?> — $<?php echo number_format($pay->amount, 2); ?></span>
+                                <span style="color:<?php echo $pay->status === 'paid' ? 'green' : ($pay->status === 'refunded' ? '#d63638' : '#999'); ?>;">
+                                    <?php echo ucfirst($pay->status); ?>
+                                    <?php if ($pay->status === 'paid' && !$pay->refunded): ?>
+                                    <button class="button button-small obm-refund" data-id="<?php echo $l->id; ?>" data-payment="<?php echo $pay->id; ?>" style="margin-left:5px;font-size:11px;">Refund</button>
+                                    <?php endif; ?>
+                                </span>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
                 </div>
                 <div class="obm-detail-notes">
+                    <?php if (class_exists('OBM_Integration_Emails') && OBM_Integrations::get_instance()->is_active('emails')): ?>
+                    <div style="margin-bottom:12px;">
+                        <strong>Send Email:</strong>
+                        <div style="display:flex;gap:6px;margin-top:4px;">
+                        <select class="obm-email-template" data-id="<?php echo $l->id; ?>">
+                            <option value="">Select template...</option>
+                            <?php
+                            $email_templates = OBM_Integration_Emails::get_instance()->get_templates();
+                            foreach ($email_templates as $et):
+                                if ($et->active): ?>
+                            <option value="<?php echo esc_attr($et->slug); ?>"><?php echo esc_html($et->name); ?></option>
+                            <?php endif; endforeach; ?>
+                            <?php if (class_exists('OBM_Integration_Reviews') && OBM_Integrations::get_instance()->is_active('reviews')): ?>
+                            <option value="review_request">Review Request</option>
+                            <?php endif; ?>
+                        </select>
+                        <button class="button obm-send-email" data-id="<?php echo $l->id; ?>">Send</button>
+                        </div>
+                        <?php
+                        $email_log = OBM_Integration_Emails::get_instance()->get_log($l->id);
+                        if (!empty($email_log)): ?>
+                        <div style="margin-top:6px;font-size:12px;color:#666;">
+                            <strong>Email History:</strong>
+                            <?php foreach (array_slice($email_log, 0, 5) as $log_entry): ?>
+                            <div><?php echo esc_html($log_entry->subject); ?> — <span style="color:<?php echo $log_entry->status === 'sent' ? 'green' : 'red'; ?>;"><?php echo esc_html($log_entry->status); ?></span> — <?php echo esc_html($log_entry->sent_at); ?></div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (class_exists('OBM_Integration_SMS') && OBM_Integrations::get_instance()->is_active('sms') && !empty($l->phone)): ?>
+                    <div style="margin-bottom:12px;">
+                        <strong>Send SMS:</strong>
+                        <div style="display:flex;gap:6px;margin-top:4px;">
+                        <input type="text" class="obm-sms-message" data-id="<?php echo $l->id; ?>" placeholder="Type message..." style="flex:1;padding:4px 8px;">
+                        <button class="button obm-send-sms" data-id="<?php echo $l->id; ?>">Send</button>
+                        </div>
+                        <?php
+                        $sms_log = OBM_Integration_SMS::get_instance()->get_log($l->id);
+                        if (!empty($sms_log)): ?>
+                        <div style="margin-top:6px;font-size:12px;color:#666;">
+                            <strong>SMS History:</strong>
+                            <?php foreach (array_slice($sms_log, 0, 5) as $slog): ?>
+                            <div style="padding:2px 0;border-bottom:1px solid #eee;">
+                                <?php echo esc_html(substr($slog->message, 0, 80)); ?><?php echo strlen($slog->message) > 80 ? '...' : ''; ?>
+                                — <span style="color:<?php echo $slog->status === 'sent' ? 'green' : 'red'; ?>;"><?php echo esc_html($slog->status); ?></span>
+                                — <?php echo esc_html($slog->sent_at); ?>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
                     <label><strong>Notes:</strong>
                     <textarea class="obm-notes" data-id="<?php echo $l->id; ?>"><?php echo esc_textarea($l->notes); ?></textarea></label>
                     <button class="button obm-save-notes" data-id="<?php echo $l->id; ?>">Save Notes</button>

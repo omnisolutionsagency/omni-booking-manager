@@ -7,7 +7,7 @@ class OBM_Integration_Stripe {
     }
 
     private function __construct() {
-        add_action('admin_menu', [$this, 'add_menu']);
+        add_action('admin_menu', [$this, 'add_menu'], 99);
         add_action('admin_post_obm_stripe_settings', [$this, 'save_settings']);
         add_action('rest_api_init', [$this, 'register_webhook']);
         add_action('wp_ajax_obm_send_invoice', [$this, 'ajax_send_invoice']);
@@ -37,20 +37,37 @@ class OBM_Integration_Stripe {
 
     public function create_payment_link($lead, $amount, $type = 'deposit') {
         $biz = obm_get('business_name', get_bloginfo('name'));
-        $desc = "{$biz} - " . ucfirst($type) . " for {$lead->name} on {$lead->requested_date}";
 
-        $result = $this->api('POST', 'checkout/sessions', [
+        $line_items = [];
+        $item_idx = 0;
+
+        // For balance invoices, show the deposit as a line item with 100% discount
+        if ($type === 'balance') {
+            $deposit_paid = $this->get_paid_amount($lead->id, 'deposit');
+            if ($deposit_paid > 0) {
+                $line_items["line_items[{$item_idx}][price_data][currency]"] = 'usd';
+                $line_items["line_items[{$item_idx}][price_data][unit_amount]"] = 0;
+                $line_items["line_items[{$item_idx}][price_data][product_data][name]"] = "Deposit Already Paid — \${$deposit_paid}";
+                $line_items["line_items[{$item_idx}][quantity]"] = 1;
+                $item_idx++;
+            }
+        }
+
+        $desc = "{$biz} - " . ucfirst($type) . " for {$lead->name} on {$lead->requested_date}";
+        $line_items["line_items[{$item_idx}][price_data][currency]"] = 'usd';
+        $line_items["line_items[{$item_idx}][price_data][unit_amount]"] = intval($amount * 100);
+        $line_items["line_items[{$item_idx}][price_data][product_data][name]"] = $desc;
+        $line_items["line_items[{$item_idx}][quantity]"] = 1;
+
+        $result = $this->api('POST', 'checkout/sessions', array_merge([
             'mode' => 'payment',
             'payment_method_types[0]' => 'card',
-            'line_items[0][price_data][currency]' => 'usd',
-            'line_items[0][price_data][unit_amount]' => intval($amount * 100),
-            'line_items[0][price_data][product_data][name]' => $desc,
             'success_url' => home_url('/booking-app/?payment=success'),
             'cancel_url' => home_url('/booking-app/?payment=cancelled'),
             'customer_email' => $lead->email,
             'metadata[lead_id]' => $lead->id,
             'metadata[type]' => $type,
-        ]);
+        ], $line_items));
 
         if ($result && isset($result['id'])) {
             global $wpdb;
@@ -95,6 +112,14 @@ class OBM_Integration_Stripe {
             return true;
         }
         return false;
+    }
+
+    public function get_paid_amount($lead_id, $type = null) {
+        global $wpdb;
+        $p = OBM_DB::get_prefix();
+        $sql = "SELECT COALESCE(SUM(amount),0) FROM {$p}payments WHERE lead_id=%d AND status='paid' AND refunded=0";
+        if ($type) $sql .= $wpdb->prepare(" AND type=%s", $type);
+        return floatval($wpdb->get_var($wpdb->prepare($sql, $lead_id)));
     }
 
     public function get_payments($lead_id) {
@@ -147,7 +172,11 @@ class OBM_Integration_Stripe {
                 $p = OBM_DB::get_prefix();
                 $wpdb->update($p . 'payments', ['status' => 'paid'], ['stripe_id' => $session['id']]);
 
-                $new_status = ($type === 'full') ? 'full' : 'deposit';
+                if ($type === 'full' || $type === 'balance') {
+                    $new_status = 'full';
+                } else {
+                    $new_status = 'deposit';
+                }
                 OBM_DB::update_lead($lead_id, [
                     'payment_status' => $new_status,
                     'stripe_payment_intent' => $session['payment_intent'] ?? '',
@@ -172,11 +201,27 @@ class OBM_Integration_Stripe {
         if ($url) {
             $biz = obm_get('business_name', get_bloginfo('name'));
             $subj = "{$biz} - " . ucfirst($type) . " Payment";
-            $body = "Hi {$lead->name},\n\nPlease complete your {$type} payment of \${$amount}:\n\n{$url}\n\nThank you!\n{$biz}";
+
+            if ($type === 'balance') {
+                $deposit_paid = $this->get_paid_amount($lead_id, 'deposit');
+                $total = $deposit_paid + $amount;
+                $body = "Hi {$lead->name},\n\n";
+                $body .= "Here's a summary of your booking on {$lead->requested_date}:\n\n";
+                $body .= "Total: \$" . number_format($total, 2) . "\n";
+                $body .= "Deposit Paid: \$" . number_format($deposit_paid, 2) . "\n";
+                $body .= "Balance Due: \$" . number_format($amount, 2) . "\n\n";
+                $body .= "Please complete your remaining balance:\n\n{$url}\n\nThank you!\n{$biz}";
+            } else {
+                $body = "Hi {$lead->name},\n\nPlease complete your {$type} payment of \${$amount}:\n\n{$url}\n\nThank you!\n{$biz}";
+            }
+
             wp_mail($lead->email, $subj, $body);
 
             if ($type === 'deposit') {
                 OBM_DB::update_lead($lead_id, ['deposit_amount' => $amount]);
+            } elseif ($type === 'balance') {
+                $deposit_paid = $this->get_paid_amount($lead_id, 'deposit');
+                OBM_DB::update_lead($lead_id, ['total_amount' => $deposit_paid + $amount]);
             } else {
                 OBM_DB::update_lead($lead_id, ['total_amount' => $amount]);
             }
@@ -200,7 +245,7 @@ class OBM_Integration_Stripe {
     }
 
     public function add_menu() {
-        add_submenu_page('obm-dashboard', 'Stripe Settings', null, 'manage_options', 'obm-int-stripe', [$this, 'render_settings']);
+        add_submenu_page('obm-dashboard', 'Payments', 'Payments', 'manage_options', 'obm-int-stripe', [$this, 'render_settings']);
     }
 
     public function save_settings() {

@@ -7,18 +7,14 @@ class OBM_Integration_Waivers {
     }
 
     private function __construct() {
-        add_action('admin_menu', [$this, 'add_menu']);
+        add_action('admin_menu', [$this, 'add_menu'], 99);
         add_action('admin_post_obm_waiver_settings', [$this, 'save_settings']);
-        add_action('init', [$this, 'rewrite_rules'], 1);
+        add_rewrite_rule('^waiver/([a-zA-Z0-9]+)/?$', 'index.php?obm_waiver_token=$matches[1]', 'top');
         add_filter('query_vars', [$this, 'query_vars']);
         add_action('template_redirect', [$this, 'serve_waiver']);
         add_action('wp_ajax_nopriv_obm_sign_waiver', [$this, 'handle_sign']);
         add_action('wp_ajax_obm_sign_waiver', [$this, 'handle_sign']);
         add_action('wp_ajax_obm_send_waiver', [$this, 'ajax_send_waiver']);
-    }
-
-    public function rewrite_rules() {
-        add_rewrite_rule('^waiver/([a-zA-Z0-9]+)/?$', 'index.php?obm_waiver_token=$matches[1]', 'top');
     }
 
     public function query_vars($vars) {
@@ -133,7 +129,7 @@ class OBM_Integration_Waivers {
     }
 
     public function add_menu() {
-        add_submenu_page('obm-dashboard', 'Waiver Settings', null, 'manage_options', 'obm-int-waivers', [$this, 'render_settings']);
+        add_submenu_page('obm-dashboard', 'Waiver Settings', 'Waivers', 'manage_options', 'obm-int-waivers', [$this, 'render_settings']);
     }
 
     public function save_settings() {

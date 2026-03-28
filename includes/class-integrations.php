@@ -22,7 +22,7 @@ class OBM_Integrations {
                 'phase' => 1,
             ],
             'emails' => [
-                'name' => 'Email Sequences',
+                'name' => 'Email / CRM',
                 'desc' => 'Automated welcome, reminder, and thank-you emails with customizable templates.',
                 'class' => 'OBM_Integration_Emails',
                 'file' => 'class-emails.php',

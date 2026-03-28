@@ -102,14 +102,14 @@ const NONCE="<?php echo esc_js($nonce); ?>";
 const H={"X-WP-Nonce":NONCE,"Content-Type":"application/json"};
 const STAFF_LABEL="<?php echo esc_js($staff_label); ?>";
 const DURATIONS=<?php echo json_encode($duration_opts); ?>;
-let leads=[],staff=[],curFilter="",calMonth="";
+let leads=[],staff=[],curFilter="",calMonth="",CFG={};
 
 async function api(path,opts={}){
     const r=await fetch(API+path,{headers:H,credentials:"same-origin",...opts});
     return r.json();
 }
 async function init(){
-    [leads,staff]=await Promise.all([api("leads"),api("staff")]);
+    [leads,staff,CFG]=await Promise.all([api("leads"),api("staff"),api("config")]);
     loadStats();renderLeads();
     calMonth=new Date().toISOString().slice(0,7);
     loadCalendar();
@@ -120,7 +120,7 @@ async function loadStats(){
         `<div class="stat-box ${k}"><span class="num">${s[k]}</span><span class="lbl">${k}</span></div>`
     ).join("");
     const t=s.proposed+s.booked+s.declined+s.completed;
-    const btns=[["","All ("+t+")"],["proposed","Proposed"],["booked","Booked"],["declined","Declined"]];
+    const btns=[["",'All ('+t+')'],['proposed','Proposed'],['booked','Booked'],['declined','Declined']];
     document.getElementById("filters").innerHTML=btns.map(b=>
         `<button class="filter-btn ${curFilter===b[0]?"active":""}" onclick="setFilter('${b[0]}')">${b[1]}</button>`
     ).join("");
@@ -152,11 +152,12 @@ function showPage(p){
 }
 function openDetail(id){
     const l=leads.find(x=>x.id==id);if(!l)return;
+    const I=CFG.integrations||{};
     const staffOpts=staff.map(s=>`<option value="${s.id}" ${s.id==l.staff_id?"selected":""}>${esc(s.name)}</option>`).join("");
     const durOpts=DURATIONS.map(d=>`<option value="${d}" ${d===l.service_duration?"selected":""}>${d||"Select"}</option>`).join("");
     const payOpts=["none","deposit","full"].map(p=>`<option value="${p}" ${p===l.payment_status?"selected":""}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join("");
     let html=`<h2>${esc(l.name)} <span class="badge badge-${l.status}">${l.status}</span></h2>`;
-    html+=`<div class="detail-row"><label>Email</label><span>${esc(l.email)}</span></div>`;
+    html+=`<div class="detail-row"><label>Email</label><span><a href="mailto:${esc(l.email)}">${esc(l.email)}</a></span></div>`;
     html+=`<div class="detail-row"><label>Phone</label><span><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a></span></div>`;
     html+=`<div class="detail-row"><label>Date</label><span>${l.requested_date}</span></div>`;
     if(l.backup_date&&l.backup_date!==l.requested_date)
@@ -169,6 +170,8 @@ function openDetail(id){
     html+=`<div class="detail-row"><label>Payment</label><select id="d-pay" onchange="updateField(${l.id},'payment_status',this.value)">${payOpts}</select></div>`;
     html+=`<div class="detail-row"><label>Notes</label><textarea id="d-notes">${esc(l.notes||"")}</textarea>
     <button class="btn btn-secondary" style="margin-top:6px" onclick="saveNotes(${l.id})">Save Notes</button></div>`;
+
+    // Status actions
     if(l.status==="proposed")
         html+=`<div class="btn-group"><button class="btn btn-book" onclick="doAction(${l.id},'book')">Book</button>
         <button class="btn btn-decline" onclick="doAction(${l.id},'decline')">Decline</button></div>`;
@@ -176,6 +179,53 @@ function openDetail(id){
         html+=`<div class="btn-group">
         <button class="btn btn-complete" onclick="doAction(${l.id},'complete')">Completed</button>
         <button class="btn btn-decline" onclick="doAction(${l.id},'decline')">Cancel</button></div>`;
+
+    // Integration actions
+    let intHtml='';
+
+    // Waiver
+    if(I.waivers){
+        const ws=l.waiver_status||'';
+        if(ws==='signed') intHtml+=`<div class="detail-row" style="color:green;font-weight:600;">&#10003; Waiver Signed</div>`;
+        else intHtml+=`<div class="detail-row"><button class="btn btn-secondary" id="btn-waiver" onclick="sendAction(${l.id},'send-waiver',this)">${ws==='pending'?'Resend Waiver':'Send Waiver'}</button>${ws==='pending'?'<small style="color:#d63638;">Sent — awaiting signature</small>':''}</div>`;
+    }
+
+    // Payments (Stripe)
+    if(I.stripe){
+        const dep=CFG.default_deposit||50;
+        intHtml+=`<div class="detail-row"><label>Send Invoice</label>
+        <div style="display:flex;gap:6px;margin-top:4px;"><select id="inv-type"><option value="deposit">Deposit</option><option value="balance">Balance</option></select>
+        <input type="number" id="inv-amount" value="${dep}" step="0.01" min="0" style="width:80px;">
+        <button class="btn btn-secondary" style="width:auto;padding:8px 14px;margin:0" onclick="sendInvoice(${l.id})">Send</button></div></div>`;
+    }
+
+    // Portal
+    if(I.portal){
+        intHtml+=`<div class="detail-row"><button class="btn btn-secondary" id="btn-portal" onclick="sendAction(${l.id},'send-portal',this)">Send Portal Link</button></div>`;
+    }
+
+    // Email
+    if(I.emails||I.reviews){
+        const tpls=(CFG.email_templates||[]).map(t=>`<option value="${t.slug}">${esc(t.name)}</option>`).join("");
+        intHtml+=`<div class="detail-row"><label>Send Email</label>
+        <div style="display:flex;gap:6px;margin-top:4px;"><select id="email-tpl"><option value="">Select...</option>${tpls}</select>
+        <button class="btn btn-secondary" style="width:auto;padding:8px 14px;margin:0" onclick="sendEmailMobile(${l.id})">Send</button></div></div>`;
+    }
+
+    // SMS
+    if(I.sms&&l.phone){
+        intHtml+=`<div class="detail-row"><label>Send SMS</label>
+        <div style="display:flex;gap:6px;margin-top:4px;"><input type="text" id="sms-msg" placeholder="Type message..." style="flex:1;">
+        <button class="btn btn-secondary" style="width:auto;padding:8px 14px;margin:0" onclick="sendSmsMobile(${l.id})">Send</button></div></div>`;
+    }
+
+    // Review (completed only)
+    if(I.reviews&&l.status==='completed'){
+        intHtml+=`<div class="detail-row"><button class="btn btn-secondary" id="btn-review" onclick="sendAction(${l.id},'send-review',this)">Send Review Request</button></div>`;
+    }
+
+    if(intHtml) html+=`<div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--brand);"><strong style="font-size:13px;color:var(--muted);text-transform:uppercase;">Quick Actions</strong>${intHtml}</div>`;
+
     html+=`<button class="btn btn-secondary" style="margin-top:12px" onclick="closeDetail()">Close</button>`;
     document.getElementById("detail").innerHTML=html;
     document.getElementById("detail").style.display="block";
@@ -256,6 +306,45 @@ function calNav(dir){
     const [y,m]=calMonth.split("-").map(Number);
     const nd=new Date(y,m-1+dir,1);
     calMonth=nd.toISOString().slice(0,7);loadCalendar();
+}
+async function sendAction(id,action,btn){
+    const orig=btn.textContent;
+    btn.disabled=true;btn.textContent="Sending...";
+    try{
+        const r=await api("leads/"+id+"/"+action,{method:"POST"});
+        if(r.sent){btn.textContent="Sent!";btn.style.color="green";leads=await api("leads");}
+        else{alert("Failed: "+(r.message||"Unknown error"));btn.disabled=false;btn.textContent=orig;}
+    }catch(e){alert("Error sending.");btn.disabled=false;btn.textContent=orig;}
+}
+async function sendInvoice(id){
+    const type=document.getElementById("inv-type").value;
+    const amount=document.getElementById("inv-amount").value;
+    if(!amount||amount<=0){alert("Enter an amount.");return;}
+    if(!confirm("Send "+type+" invoice for $"+amount+"?"))return;
+    try{
+        const r=await api("leads/"+id+"/send-invoice",{method:"POST",body:JSON.stringify({type:type,amount:amount})});
+        if(r.sent){alert("Invoice sent!");leads=await api("leads");openDetail(id);}
+        else alert("Failed: "+(r.message||"Check Stripe settings"));
+    }catch(e){alert("Error creating invoice.");}
+}
+async function sendEmailMobile(id){
+    const tpl=document.getElementById("email-tpl").value;
+    if(!tpl){alert("Select a template.");return;}
+    const action=tpl==="review_request"?"send-review":"send-email";
+    const body=tpl==="review_request"?{}:{template:tpl};
+    try{
+        const r=await api("leads/"+id+"/"+action,{method:"POST",body:JSON.stringify(body)});
+        if(r.sent)alert("Email sent!");else alert("Failed to send.");
+    }catch(e){alert("Error sending email.");}
+}
+async function sendSmsMobile(id){
+    const msg=document.getElementById("sms-msg").value;
+    if(!msg){alert("Type a message.");return;}
+    try{
+        const r=await api("leads/"+id+"/send-sms",{method:"POST",body:JSON.stringify({message:msg})});
+        if(r.sent){alert("SMS sent!");document.getElementById("sms-msg").value="";}
+        else alert("Failed to send SMS.");
+    }catch(e){alert("Error sending SMS.");}
 }
 if("serviceWorker" in navigator){navigator.serviceWorker.register("<?php echo OBM_PLUGIN_URL; ?>app/sw.js");}
 init();

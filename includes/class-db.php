@@ -73,6 +73,13 @@ class OBM_DB {
         if (!empty($args['month'])) {
             $where[] = $wpdb->prepare("DATE_FORMAT(requested_date,'%%Y-%%m')=%s", $args['month']);
         }
+        if (!empty($args['waiver_status'])) {
+            if ($args['waiver_status'] === 'pending') {
+                $where[] = "waiver_status IN ('pending','') AND status IN ('proposed','booked')";
+            } else {
+                $where[] = $wpdb->prepare("waiver_status=%s", $args['waiver_status']);
+            }
+        }
         if (!empty($where)) $sql .= ' WHERE ' . implode(' AND ', $where);
         $sql .= ' ORDER BY requested_date ASC, start_time ASC';
         if (!empty($args['limit'])) $sql .= $wpdb->prepare(' LIMIT %d', $args['limit']);
