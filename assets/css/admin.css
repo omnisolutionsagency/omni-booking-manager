@@ -1,0 +1,51 @@
+.obm-wrap{max-width:1200px;}
+.obm-stats{display:flex;gap:15px;margin:20px 0;}
+.obm-stat-box{display:block;padding:15px 25px;background:#fff;border:1px solid #ddd;border-radius:6px;text-align:center;text-decoration:none;color:#333;transition:all .2s;}
+.obm-stat-box:hover{box-shadow:0 2px 8px rgba(0,0,0,.1);color:#333;}
+.obm-stat-box .num{display:block;font-size:28px;font-weight:700;}
+.obm-stat-box .lbl{font-size:13px;text-transform:uppercase;color:#666;}
+.obm-stat-box.proposed{border-left:4px solid #f0c040;}
+.obm-stat-box.booked{border-left:4px solid #2c5f2d;}
+.obm-stat-box.declined{border-left:4px solid #cc3333;}
+.obm-stat-box.completed{border-left:4px solid #888;}
+.obm-status{padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;text-transform:uppercase;}
+.obm-status-proposed{background:#fef3cd;color:#856404;}
+.obm-status-booked{background:#d4edda;color:#155724;}
+.obm-status-declined{background:#f8d7da;color:#721c24;}
+.obm-status-completed{background:#e2e3e5;color:#383d41;}
+.obm-pay{padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;}
+.obm-pay-none{background:#f0f0f0;color:#666;}
+.obm-pay-deposit{background:#fff3cd;color:#856404;}
+.obm-pay-full{background:#d4edda;color:#155724;}
+.obm-dup-badge{background:#cc3333;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px;margin-left:5px;font-weight:700;}
+.obm-duplicate{background:#fff3f3 !important;}
+.obm-detail-row td{padding:0 !important;}
+.obm-detail-panel{padding:20px;background:#f9f9f9;border-top:2px solid #2c5f2d;}
+.obm-detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;}
+.obm-detail-actions select,.obm-detail-actions input[type="time"]{width:100%;margin-bottom:8px;padding:4px;}
+.obm-detail-actions label{display:block;margin-bottom:10px;font-weight:600;}
+.obm-btn-group{margin-top:10px;display:flex;gap:8px;}
+.obm-detail-notes textarea{width:100%;min-height:80px;margin:5px 0;}
+.obm-detail-notes label{font-weight:600;}
+.obm-table .obm-actions{white-space:nowrap;}
+.obm-expand-btn{cursor:pointer;}
+.obm-calendar-wrap{margin:20px 0;background:#fff;border:1px solid #ddd;border-radius:6px;padding:15px;}
+.obm-cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.obm-cal-nav h3{margin:0;}
+.obm-cal-table{width:100%;border-collapse:collapse;table-layout:fixed;}
+.obm-cal-table th{background:#2c5f2d;color:#fff;padding:8px;text-align:center;font-size:13px;}
+.obm-cal-day{border:1px solid #ddd;padding:4px;vertical-align:top;height:80px;font-size:12px;}
+.obm-cal-empty{border:1px solid #eee;background:#fafafa;}
+.obm-cal-num{font-weight:700;font-size:13px;display:block;margin-bottom:3px;}
+.obm-cal-today{background:#fffde7 !important;}
+.obm-cal-blocked{background:#fce4ec !important;}
+.obm-cal-event{padding:2px 4px;margin:1px 0;border-radius:3px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.obm-cal-event small{display:block;font-size:10px;color:#666;}
+.obm-cal-proposed{background:#fef3cd;border-left:3px solid #f0c040;}
+.obm-cal-booked{background:#d4edda;border-left:3px solid #2c5f2d;}
+.obm-cal-block-label{font-size:10px;color:#c62828;font-style:italic;}
+@media(max-width:782px){
+.obm-stats{flex-wrap:wrap;}
+.obm-detail-grid{grid-template-columns:1fr;}
+.obm-cal-day{height:60px;}
+}
